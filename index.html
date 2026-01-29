@@ -50,7 +50,7 @@ canvas{width:100%;height:480px;border-radius:16px;background:linear-gradient(#ff
 <script>
 const cv=document.getElementById("cv");
 const ctx=cv.getContext("2d");
-let audioCtx, analyser, dataTime, stream;
+let audioCtx, analyser, dataTime, dataFreq, stream;
 let snapshots=[];
 
 function resize(){
@@ -69,6 +69,7 @@ async function start(){
   analyser.fftSize=2048;
   src.connect(analyser);
   dataTime=new Uint8Array(analyser.fftSize);
+  dataFreq=new Uint8Array(analyser.frequencyBinCount);
   draw();
 }
 function stop(){stream.getTracks().forEach(t=>t.stop());audioCtx.close();}
@@ -76,24 +77,37 @@ startBtn.onclick=start; stopBtn.onclick=stop;
 
 snapBtn.onclick=()=>{
   if(!dataTime) return;
-  snapshots.push({data:new Uint8Array(dataTime), color:colorPicker.value, shift:0});
+  analyser.getByteTimeDomainData(dataTime);
+  analyser.getByteFrequencyData(dataFreq);
+  snapshots.push({
+    time:new Uint8Array(dataTime),
+    freq:new Uint8Array(dataFreq),
+    color:colorPicker.value,
+    shift:0
+  });
   updateSnapshotUI();
 };
 
 function updateSnapshotUI(){
   const box=document.getElementById("snapshots");
-  box.innerHTML="<b>保存した波形：</b>";
+  box.innerHTML="<b>保存したスナップショット：</b>";
+  const mode=modeSel.value;
   snapshots.forEach((s,i)=>{
     const div=document.createElement("div");
     div.className="phaseCtrl";
-    div.innerHTML=`<span style="color:${s.color}">■</span> #${i+1} 位相`;
-    const slider=document.createElement("input");
-    slider.type="range"; slider.min=-1024; slider.max=1024; slider.value=0;
-    slider.oninput=e=>s.shift=parseInt(e.target.value);
-    div.appendChild(slider);
+    div.innerHTML=`<span style="color:${s.color}">■</span> #${i+1}`;
+    if(mode==="wave"){
+      const slider=document.createElement("input");
+      slider.type="range"; slider.min=-1024; slider.max=1024; slider.value=s.shift;
+      slider.oninput=e=>s.shift=parseInt(e.target.value);
+      div.appendChild(document.createTextNode(" 位相"));
+      div.appendChild(slider);
+    }
     box.appendChild(div);
   });
 }
+
+modeSel.onchange=updateSnapshotUI;
 
 function drawAxes(){
   const w=cv.width/(window.devicePixelRatio||1);
@@ -107,10 +121,13 @@ function draw(){
   requestAnimationFrame(draw);
   if(!analyser)return;
   analyser.getByteTimeDomainData(dataTime);
+  analyser.getByteFrequencyData(dataFreq);
   ctx.clearRect(0,0,cv.width,cv.height);
   const w=cv.width/(window.devicePixelRatio||1);
   const h=cv.height/(window.devicePixelRatio||1);
   drawAxes();
+
+  const mode=modeSel.value;
 
   function drawWave(arr,color,shift=0){
     ctx.strokeStyle=color; ctx.lineWidth=2; ctx.beginPath();
@@ -122,8 +139,48 @@ function draw(){
     } ctx.stroke();
   }
 
-  snapshots.forEach(s=>drawWave(s.data,s.color,s.shift));
-  drawWave(dataTime,colorPicker.value,0);
+  function drawPolar(arr,color){
+    const cx=w/2,cy=h/2,R=Math.min(w,h)*0.35;
+    ctx.strokeStyle=color; ctx.beginPath();
+    for(let i=0;i<arr.length;i++){
+      let ang=i/arr.length*Math.PI*2;
+      let amp=(arr[i]-128)/128;
+      let r=R*(0.6+amp*0.4);
+      let x=cx+Math.cos(ang)*r,y=cy+Math.sin(ang)*r;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    } ctx.closePath(); ctx.stroke();
+  }
+
+  function drawLissajous(arr,color){
+    ctx.strokeStyle=color; ctx.beginPath();
+    for(let i=0;i<arr.length;i++){
+      let x=(arr[i]-128)/128;
+      let y=(arr[(i+100)%arr.length]-128)/128;
+      x=w/2+x*w*0.4; y=h/2+y*h*0.4;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    } ctx.stroke();
+  }
+
+  function drawSpectrum(arr,color){
+    ctx.strokeStyle=color; ctx.beginPath();
+    for(let i=0;i<arr.length;i++){
+      let x=i*w/arr.length;
+      let y=h-arr[i]/255*h*0.9;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    } ctx.stroke();
+  }
+
+  snapshots.forEach(s=>{
+    if(mode==="wave") drawWave(s.time,s.color,s.shift);
+    else if(mode==="polar") drawPolar(s.time,s.color);
+    else if(mode==="lissajous") drawLissajous(s.time,s.color);
+    else if(mode==="spectrum") drawSpectrum(s.freq,s.color);
+  });
+
+  if(mode==="wave") drawWave(dataTime,colorPicker.value);
+  else if(mode==="polar") drawPolar(dataTime,colorPicker.value);
+  else if(mode==="lissajous") drawLissajous(dataTime,colorPicker.value);
+  else if(mode==="spectrum") drawSpectrum(dataFreq,colorPicker.value);
 }
 </script>
 </body>
