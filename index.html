@@ -56,8 +56,7 @@ let audioCtx, analyser, dataTime, dataFreq, stream;
 let snapshots=[];
 let currentColor="#ff7eb6";
 
-const picker=document.getElementById("colorPicker");
-picker.oninput=e=>currentColor=e.target.value;
+colorPicker.oninput=e=>currentColor=e.target.value;
 clearColor.onclick=()=>currentColor="transparent";
 
 function resize(){
@@ -114,54 +113,8 @@ function updateSnapshotUI(){
     del.className="deleteBtn";
     del.onclick=()=>{snapshots.splice(i,1);updateSnapshotUI();}
     div.appendChild(del);
-
     box.appendChild(div);
   });
-}
-
-function drawAxes(mode,w,h){
-  ctx.strokeStyle="#ccd3ff";
-  ctx.fillStyle="#556";
-  ctx.font="12px 'M PLUS Rounded 1c'";
-  ctx.lineWidth=1;
-
-  if(mode==="wave"){
-    for(let i=0;i<=10;i++){
-      let x=i*w/10;
-      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
-      ctx.fillText((i*2)+"ms",x+2,h-4);
-    }
-    for(let j=0;j<=8;j++){
-      let y=j*h/8;
-      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
-      ctx.fillText((1-j/4).toFixed(1),2,y-2);
-    }
-  }
-  else if(mode==="polar"){
-    const cx=w/2, cy=h/2, R=Math.min(w,h)*0.35;
-    for(let a=0;a<360;a+=30){
-      let rad=a*Math.PI/180;
-      let x=cx+Math.cos(rad)*R;
-      let y=cy+Math.sin(rad)*R;
-      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(x,y);ctx.stroke();
-      ctx.fillText(a+"°",x,y);
-    }
-  }
-  else if(mode==="lissajous"){
-    for(let i=0;i<=8;i++){
-      let x=i*w/8;
-      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
-      ctx.fillText((i/4-1).toFixed(1),x+2,h-4);
-    }
-  }
-  else if(mode==="spectrum"){
-    const nyq=audioCtx ? audioCtx.sampleRate/2 : 22050;
-    for(let i=0;i<=10;i++){
-      let x=i*w/10;
-      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
-      ctx.fillText(Math.round(i*nyq/10)+"Hz",x+2,h-4);
-    }
-  }
 }
 
 function draw(){
@@ -169,12 +122,11 @@ function draw(){
   if(!analyser)return;
   analyser.getByteTimeDomainData(dataTime);
   analyser.getByteFrequencyData(dataFreq);
+
   ctx.clearRect(0,0,cv.width,cv.height);
   const w=cv.width/(window.devicePixelRatio||1);
   const h=cv.height/(window.devicePixelRatio||1);
   const mode=modeSel.value;
-
-  drawAxes(mode,w,h);
 
   function wave(arr,color,shift=0){
     if(color==="transparent")return;
@@ -187,8 +139,54 @@ function draw(){
     } ctx.stroke();
   }
 
-  snapshots.forEach(s=>{ if(mode==="wave") wave(s.time,s.color,s.shift); });
+  function polar(arr,color){
+    if(color==="transparent")return;
+    const cx=w/2,cy=h/2,R=Math.min(w,h)*0.35;
+    ctx.strokeStyle=color; ctx.beginPath();
+    for(let i=0;i<arr.length;i++){
+      let ang=i/arr.length*Math.PI*2;
+      let amp=(arr[i]-128)/128;
+      let r=R*(0.6+amp*0.4);
+      let x=cx+Math.cos(ang)*r,y=cy+Math.sin(ang)*r;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
+    ctx.closePath(); ctx.stroke();
+  }
+
+  function liss(arr,color){
+    if(color==="transparent")return;
+    ctx.strokeStyle=color; ctx.beginPath();
+    for(let i=0;i<arr.length;i++){
+      let x=(arr[i]-128)/128;
+      let y=(arr[(i+100)%arr.length]-128)/128;
+      x=w/2+x*w*0.4; y=h/2+y*h*0.4;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
+    ctx.stroke();
+  }
+
+  function spectrum(arr,color){
+    if(color==="transparent")return;
+    ctx.strokeStyle=color; ctx.beginPath();
+    for(let i=0;i<arr.length;i++){
+      let x=i*w/arr.length;
+      let y=h-arr[i]/255*h*0.9;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
+    ctx.stroke();
+  }
+
+  snapshots.forEach(s=>{
+    if(mode==="wave") wave(s.time,s.color,s.shift);
+    if(mode==="polar") polar(s.time,s.color);
+    if(mode==="lissajous") liss(s.time,s.color);
+    if(mode==="spectrum") spectrum(s.freq,s.color);
+  });
+
   if(mode==="wave") wave(dataTime,currentColor);
+  if(mode==="polar") polar(dataTime,currentColor);
+  if(mode==="lissajous") liss(dataTime,currentColor);
+  if(mode==="spectrum") spectrum(dataFreq,currentColor);
 }
 </script>
 </body>
