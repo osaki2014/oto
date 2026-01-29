@@ -14,9 +14,7 @@
 body{margin:0;font-family:"M PLUS Rounded 1c",sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:var(--ink);}
 header{padding:12px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;}
 button,select{border:none;border-radius:20px;padding:8px 14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;font-weight:700;cursor:pointer;}
-.colorBtn{
-  width:34px;height:34px;border-radius:50%;border:3px solid white;cursor:pointer;
-}
+.colorBtn{width:34px;height:34px;border-radius:50%;border:3px solid white;cursor:pointer;}
 .card{margin:12px;background:var(--card);border-radius:20px;padding:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);}
 canvas{width:100%;height:480px;border-radius:16px;background:linear-gradient(#ffffff,#eef1ff);}
 .label{font-size:14px;margin-right:6px;}
@@ -60,12 +58,21 @@ let audioCtx, analyser, dataTime, dataFreq, stream;
 let snapshots=[];
 let currentColor="#ff7eb6";
 
+// 🎨 色ボタン修正済み
 const colorBtn=document.getElementById("colorBtn");
 const picker=document.getElementById("colorPicker");
-colorBtn.style.background=currentColor;
+const clearBtn=document.getElementById("clearColor");
+
+function updateColorBtn(){
+  colorBtn.style.background = currentColor==="transparent"
+    ? "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 10px 10px"
+    : currentColor;
+}
+updateColorBtn();
+
 colorBtn.onclick=()=>picker.click();
-picker.oninput=e=>{currentColor=e.target.value;colorBtn.style.background=currentColor;}
-clearColor.onclick=()=>{currentColor="transparent";colorBtn.style.background="transparent";}
+picker.oninput=e=>{currentColor=e.target.value;updateColorBtn();}
+clearBtn.onclick=()=>{currentColor="transparent";updateColorBtn();}
 
 function resize(){
   const dpr=window.devicePixelRatio||1;
@@ -112,19 +119,65 @@ function updateSnapshotUI(){
   });
 }
 
+// 📏 全モード対応目盛
 function drawAxes(mode){
   const w=cv.width/(window.devicePixelRatio||1);
   const h=cv.height/(window.devicePixelRatio||1);
-  ctx.strokeStyle="#ccd3ff"; ctx.fillStyle="#556"; ctx.font="12px 'M PLUS Rounded 1c'";
+  ctx.strokeStyle="#ccd3ff";
+  ctx.fillStyle="#556";
+  ctx.font="12px 'M PLUS Rounded 1c'";
   ctx.lineWidth=1;
 
   if(mode==="wave"){
-    for(let i=0;i<=10;i++){let x=i*w/10; ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke(); ctx.fillText((i*2)+"ms",x+2,h-4);}
-    for(let j=0;j<=8;j++){let y=j*h/8; ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke(); ctx.fillText((1-j/4).toFixed(1),2,y-2);}
+    for(let i=0;i<=10;i++){
+      let x=i*w/10;
+      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+      ctx.fillText((i*2)+"ms",x+2,h-4);
+    }
+    for(let j=0;j<=8;j++){
+      let y=j*h/8;
+      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+      ctx.fillText((1-j/4).toFixed(1),2,y-2);
+    }
+  }
+  else if(mode==="polar"){
+    const cx=w/2, cy=h/2, R=Math.min(w,h)*0.35;
+    for(let a=0;a<360;a+=30){
+      let rad=a*Math.PI/180;
+      let x=cx+Math.cos(rad)*R;
+      let y=cy+Math.sin(rad)*R;
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(x,y);ctx.stroke();
+      ctx.fillText(a+"°",x,y);
+    }
+    for(let r=0.25;r<=1;r+=0.25){
+      ctx.beginPath();ctx.arc(cx,cy,R*r,0,Math.PI*2);ctx.stroke();
+      ctx.fillText(r.toFixed(2),cx+5,cy-R*r);
+    }
+  }
+  else if(mode==="lissajous"){
+    for(let i=0;i<=8;i++){
+      let x=i*w/8;
+      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+      ctx.fillText((i/4-1).toFixed(1),x+2,h-4);
+    }
+    for(let j=0;j<=8;j++){
+      let y=j*h/8;
+      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+      ctx.fillText((1-j/4).toFixed(1),2,y-2);
+    }
   }
   else if(mode==="spectrum"){
-    for(let i=0;i<=10;i++){let x=i*w/10; ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke(); ctx.fillText((i*2000)+"Hz",x+2,h-4);}
-    for(let j=0;j<=8;j++){let y=j*h/8; ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke(); ctx.fillText((100-j*12)+"%",2,y-2);}
+    const nyq=audioCtx ? audioCtx.sampleRate/2 : 22050;
+    for(let i=0;i<=10;i++){
+      let x=i*w/10;
+      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+      ctx.fillText(Math.round(i*nyq/10)+"Hz",x+2,h-4);
+    }
+    for(let j=0;j<=8;j++){
+      let y=j*h/8;
+      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+      ctx.fillText((100-j*12)+"%",2,y-2);
+    }
   }
 }
 
