@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>サウンド観察ラボ</title>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg1:#f7f8ff; --bg2:#e6e9ff; --card:#ffffffdd;
+  --ink:#334; --accent:#ff7eb6; --accent2:#7ec8ff; --grid:#ccd3ff;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:"M PLUS Rounded 1c",sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:var(--ink);}
+header{padding:12px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;}
+button,select{border:none;border-radius:20px;padding:8px 14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;font-weight:700;cursor:pointer;}
+.card{margin:12px;background:var(--card);border-radius:20px;padding:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);}
+canvas{width:100%;height:480px;border-radius:16px;background:linear-gradient(#ffffff,#eef1ff);}
+.label{font-size:14px;margin-right:6px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <button id="startBtn">スタート</button>
+    <button id="stopBtn">ストップ</button>
+  </div>
+  <div>
+    <span class="label">表示：</span>
+    <select id="modeSel">
+      <option value="wave">時間波形</option>
+      <option value="polar">極座標</option>
+      <option value="lissajous">リサージュ</option>
+      <option value="spectrum">スペクトル</option>
+    </select>
+    <span class="label">周波数軸：</span>
+    <select id="scaleSel">
+      <option value="linear">線形</option>
+      <option value="log">対数</option>
+    </select>
+  </div>
+</header>
+
+<div class="card">
+  <canvas id="cv"></canvas>
+</div>
+
+<script>
+const cv=document.getElementById("cv");
+const ctx=cv.getContext("2d");
+let audioCtx, analyser, dataTime, dataFreq, stream;
+
+function resize(){
+  const dpr=window.devicePixelRatio||1;
+  cv.width=cv.clientWidth*dpr;
+  cv.height=cv.clientHeight*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.onresize=resize; resize();
+
+async function start(){
+  audioCtx=new AudioContext();
+  stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  const src=audioCtx.createMediaStreamSource(stream);
+  analyser=audioCtx.createAnalyser();
+  analyser.fftSize=2048;
+  src.connect(analyser);
+  dataTime=new Uint8Array(analyser.fftSize);
+  dataFreq=new Uint8Array(analyser.frequencyBinCount);
+  draw();
+}
+function stop(){stream.getTracks().forEach(t=>t.stop());audioCtx.close();}
+startBtn.onclick=start; stopBtn.onclick=stop;
+
+function noteName(freq){
+  const A4=440;
+  const n=Math.round(12*Math.log2(freq/A4));
+  const names=["ド","ド#","レ","レ#","ミ","ファ","ファ#","ソ","ソ#","ラ","ラ#","シ"];
+  return names[(n+9+1200)%12];
+}
+
+function drawAxes(xTicks,yTicks,xLabelFn,yLabelFn){
+  const w=cv.width/(window.devicePixelRatio||1);
+  const h=cv.height/(window.devicePixelRatio||1);
+  ctx.strokeStyle="#ccd3ff"; ctx.lineWidth=1;
+  ctx.fillStyle="#556"; ctx.font="12px 'M PLUS Rounded 1c'";
+  for(let i=0;i<=xTicks;i++){
+    let x=i*w/xTicks;
+    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+    ctx.fillText(xLabelFn(i/xTicks),x+2,h-4);
+  }
+  for(let j=0;j<=yTicks;j++){
+    let y=j*h/yTicks;
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+    ctx.fillText(yLabelFn(1-j/yTicks),2,y-2);
+  }
+}
+
+function draw(){
+  requestAnimationFrame(draw);
+  if(!analyser)return;
+  const mode=modeSel.value;
+  const scale=scaleSel.value;
+  analyser.getByteTimeDomainData(dataTime);
+  analyser.getByteFrequencyData(dataFreq);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const w=cv.width/(window.devicePixelRatio||1);
+  const h=cv.height/(window.devicePixelRatio||1);
+
+  if(mode==="wave"){
+    drawAxes(10,8,t=>(t*20).toFixed(0)+"ms",a=>(a*2-1).toFixed(1));
+    ctx.strokeStyle="#ff7eb6"; ctx.lineWidth=2; ctx.beginPath();
+    for(let i=0;i<dataTime.length;i++){
+      let x=i*w/dataTime.length;
+      let y=h/2+(dataTime[i]-128)/128*h*0.4;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    } ctx.stroke();
+  }
+
+  else if(mode==="polar"){
+    const cx=w/2,cy=h/2,R=Math.min(w,h)*0.35;
+    ctx.strokeStyle="#ccd3ff";
+    for(let r=0.25;r<=1;r+=0.25){ctx.beginPath();ctx.arc(cx,cy,R*r,0,Math.PI*2);ctx.stroke();ctx.fillText(r.toFixed(2),cx+5,cy-R*r);}
+    for(let a=0;a<360;a+=30){
+      let rad=a*Math.PI/180;
+      ctx.beginPath();ctx.moveTo(cx,cy);
+      ctx.lineTo(cx+Math.cos(rad)*R,cy+Math.sin(rad)*R);ctx.stroke();
+      ctx.fillText(a+"°",cx+Math.cos(rad)*(R+10),cy+Math.sin(rad)*(R+10));
+    }
+    ctx.strokeStyle="#7ec8ff";ctx.beginPath();
+    for(let i=0;i<dataTime.length;i++){
+      let ang=i/dataTime.length*Math.PI*2;
+      let amp=(dataTime[i]-128)/128;
+      let r=R*(0.6+amp*0.4);
+      let x=cx+Math.cos(ang)*r,y=cy+Math.sin(ang)*r;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    } ctx.closePath(); ctx.stroke();
+  }
+
+  else if(mode==="lissajous"){
+    drawAxes(8,8,x=>(x*2-1).toFixed(1),y=>(y*2-1).toFixed(1));
+    ctx.strokeStyle="#7ec8ff"; ctx.beginPath();
+    for(let i=0;i<dataTime.length;i++){
+      let x=(dataTime[i]-128)/128;
+      let y=(dataTime[(i+100)%dataTime.length]-128)/128;
+      x=w/2+x*w*0.4; y=h/2+y*h*0.4;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    } ctx.stroke();
+  }
+
+  else if(mode==="spectrum"){
+    const nyq=audioCtx.sampleRate/2;
+    drawAxes(10,8,f=>Math.round(f*nyq)+"Hz",m=>(m*100).toFixed(0)+"%");
+    ctx.strokeStyle="#ff7eb6"; ctx.beginPath();
+    let peakF=0,peakV=0;
+    for(let i=0;i<dataFreq.length;i++){
+      let f=i/dataFreq.length;
+      let freq=f*nyq;
+      if(scale==="log") f=Math.log10(1+9*f);
+      let x=f*w;
+      let mag=dataFreq[i]/255;
+      let y=h-mag*h*0.9;
+      if(dataFreq[i]>peakV){peakV=dataFreq[i];peakF=freq;}
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    } ctx.stroke();
+
+    ctx.fillStyle="#334"; ctx.font="16px 'M PLUS Rounded 1c'";
+    ctx.fillText("ピーク: "+noteName(peakF)+" ("+Math.round(peakF)+" Hz)",20,30);
+  }
+}
+</script>
+</body>
+</html>
