@@ -3,249 +3,624 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>サウンド観察ラボ</title>
-<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+<title>Mic Visualizer (Wave / Polar / Spectrum)</title>
 <style>
-:root{
-  --bg1:#f7f8ff; --bg2:#e6e9ff; --card:#ffffffdd;
-  --ink:#334; --accent:#ff7eb6; --accent2:#7ec8ff; --grid:#ccd3ff;
-}
-*{box-sizing:border-box;}
-body{margin:0;font-family:"M PLUS Rounded 1c",sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:var(--ink);}
-header{padding:12px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;}
-button,select{border:none;border-radius:20px;padding:8px 14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;font-weight:700;cursor:pointer;}
-.colorBtn{width:34px;height:34px;border-radius:50%;border:3px solid white;cursor:pointer;}
-.card{margin:12px;background:var(--card);border-radius:20px;padding:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);}
-canvas{width:100%;height:480px;border-radius:16px;background:linear-gradient(#ffffff,#eef1ff);}
-.label{font-size:14px;margin-right:6px;}
-#snapshots{margin:10px;font-size:13px;}
-.phaseCtrl{display:flex;align-items:center;gap:6px;margin:4px 0;}
-.deleteBtn{cursor:pointer;color:#c33;font-weight:bold;}
+  :root{
+    --bg:#0b1020;
+    --panel:#111a33cc;
+    --ink:#e9eeff;
+    --muted:#aab4dd;
+    --btn:#1e2b59;
+    --btn2:#27387a;
+    --accent:#7dd3fc;
+    --danger:#ff6b6b;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:radial-gradient(900px 600px at 30% 10%, #182b66 0%, var(--bg) 55%, #050714 100%);
+    color:var(--ink);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP", "Hiragino Sans", "Apple Color Emoji","Segoe UI Emoji";
+  }
+  header{
+    padding:10px 12px;
+    display:flex; gap:10px; flex-wrap:wrap;
+    align-items:center; justify-content:space-between;
+    background:rgba(0,0,0,0.45);
+    position:sticky; top:0; backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .left, .right{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .pill{
+    background:rgba(255,255,255,0.07);
+    border:1px solid rgba(255,255,255,0.10);
+    padding:8px 10px;
+    border-radius:999px;
+    display:flex; gap:8px; align-items:center;
+  }
+  button, select, input[type="range"]{
+    font:inherit;
+  }
+  button{
+    background:linear-gradient(180deg, var(--btn2), var(--btn));
+    color:var(--ink);
+    border:1px solid rgba(255,255,255,0.14);
+    border-radius:12px;
+    padding:10px 12px;
+    cursor:pointer;
+  }
+  button:hover{ filter:brightness(1.08); }
+  button:disabled{
+    opacity:.5; cursor:not-allowed;
+  }
+  .danger{
+    background:linear-gradient(180deg, #ff7a7a, #ff4b4b);
+    border-color: rgba(255,255,255,0.18);
+    color:#190b0b;
+    font-weight:700;
+  }
+  select{
+    background:rgba(255,255,255,0.08);
+    color:var(--ink);
+    border:1px solid rgba(255,255,255,0.14);
+    border-radius:12px;
+    padding:10px 12px;
+  }
+  main{
+    display:grid;
+    grid-template-columns: 1fr;
+    gap:12px;
+    padding:12px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .card{
+    background:var(--panel);
+    border:1px solid rgba(255,255,255,0.10);
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  }
+  .card .title{
+    padding:10px 12px;
+    color:var(--muted);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display:flex; justify-content:space-between; align-items:center;
+    gap:10px;
+  }
+  .title small{ opacity:.9 }
+  canvas{
+    display:block;
+    width:100%;
+    height: 520px;
+    background: rgba(0,0,0,0.25);
+  }
+  .grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px;
+    padding:10px 12px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .kv{
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.10);
+    border-radius:14px;
+    padding:10px 12px;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .kv label{ font-size:12px; color:var(--muted); display:flex; justify-content:space-between; gap:10px; }
+  .kv .row{ display:flex; align-items:center; gap:10px; }
+  input[type="range"]{ width:100%; }
+  .hint{
+    padding:10px 12px;
+    color:var(--muted);
+    font-size:13px;
+    line-height:1.5;
+  }
+  .badge{
+    font-size:12px;
+    padding:4px 8px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,0.14);
+    background:rgba(255,255,255,0.06);
+    color:var(--muted);
+  }
 </style>
 </head>
 <body>
-
 <header>
-  <div>
-    <button id="startBtn">スタート</button>
-    <button id="stopBtn">ストップ</button>
-    <button id="snapBtn">📷</button>
-    <input type="color" id="colorPicker" value="#ff7eb6" style="display:none">
-    <div id="colorBtn" class="colorBtn"></div>
-    <button id="clearColor">透明</button>
+  <div class="left">
+    <div class="pill">
+      <strong>Mic Visualizer</strong>
+      <span class="badge" id="status">stopped</span>
+    </div>
+
+    <button id="btnStart">Start</button>
+    <button id="btnStop" class="danger" disabled>Stop</button>
+
+    <div class="pill">
+      <span style="color:var(--muted);font-size:13px;">表示</span>
+      <select id="mode">
+        <option value="wave">時間波形</option>
+        <option value="polar">極座標（円形）</option>
+        <option value="spectrum">スペクトル（周波数）</option>
+      </select>
+    </div>
   </div>
-  <div>
-    <span class="label">表示：</span>
-    <select id="modeSel">
-      <option value="wave">時間波形</option>
-      <option value="polar">極座標</option>
-      <option value="lissajous">リサージュ</option>
-      <option value="spectrum">スペクトル</option>
-    </select>
+
+  <div class="right">
+    <div class="pill" title="マイク入力が小さいときに視認性を上げます">
+      <span style="color:var(--muted);font-size:13px;">自動ゲイン</span>
+      <input id="autoGain" type="checkbox" checked />
+    </div>
+    <div class="pill" title="描画フレームレートを下げると軽くなります">
+      <span style="color:var(--muted);font-size:13px;">FPS</span>
+      <select id="fps">
+        <option value="60">60</option>
+        <option value="30" selected>30</option>
+        <option value="15">15</option>
+      </select>
+    </div>
   </div>
 </header>
 
-<div class="card">
-  <canvas id="cv"></canvas>
-</div>
+<main>
+  <section class="card">
+    <div class="title">
+      <div>
+        <span id="titleText">時間波形</span>
+        <small id="subText">マイクの生波形（時間）</small>
+      </div>
+      <div class="badge" id="info">—</div>
+    </div>
 
-<div id="snapshots"></div>
+    <canvas id="cv"></canvas>
+
+    <div class="grid">
+      <div class="kv">
+        <label>FFTサイズ <span id="fftVal">2048</span></label>
+        <div class="row">
+          <input id="fft" type="range" min="512" max="8192" step="512" value="2048">
+        </div>
+        <div class="hint">スペクトルの周波数分解能に影響（大きいほど細かいが重くなります）</div>
+      </div>
+
+      <div class="kv">
+        <label>スムージング <span id="smVal">0.80</span></label>
+        <div class="row">
+          <input id="smooth" type="range" min="0" max="0.98" step="0.01" value="0.80">
+        </div>
+        <div class="hint">値を上げるとスペクトルがなめらか（反応は遅くなります）</div>
+      </div>
+
+      <div class="kv">
+        <label>振幅スケール <span id="ampVal">1.0</span></label>
+        <div class="row">
+          <input id="amp" type="range" min="0.2" max="6" step="0.1" value="1.0">
+        </div>
+        <div class="hint">線の大きさ（極座標と時間波形で効きます）</div>
+      </div>
+
+      <div class="kv">
+        <label>周波数上限（表示） <span id="maxFVal">8000 Hz</span></label>
+        <div class="row">
+          <input id="maxF" type="range" min="1000" max="20000" step="500" value="8000">
+        </div>
+        <div class="hint">スペクトル表示の右端（※ナイキスト周波数まで）</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="title"><span>メモ</span></div>
+    <div class="hint">
+      - Chrome / Edge 推奨。Safari はマイク許可や自動再生制限の影響を受けることがあります。<br/>
+      - HTTPS または localhost で開くと安定します（file:// でも多くは動きますが環境差あり）。<br/>
+      - 極座標は「波形を円周に沿って並べる」表示です（リサージュではありません）。
+    </div>
+  </section>
+</main>
 
 <script>
-const cv=document.getElementById("cv");
-const ctx=cv.getContext("2d");
-let audioCtx, analyser, dataTime, dataFreq, stream;
-let snapshots=[];
-let currentColor="#ff7eb6";
+(() => {
+  "use strict";
 
-// 🎨 色ボタン修正済み
-const colorBtn=document.getElementById("colorBtn");
-const picker=document.getElementById("colorPicker");
-const clearBtn=document.getElementById("clearColor");
+  const $ = (id) => document.getElementById(id);
 
-function updateColorBtn(){
-  colorBtn.style.background = currentColor==="transparent"
-    ? "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 10px 10px"
-    : currentColor;
-}
-updateColorBtn();
+  const cv = $("cv");
+  const ctx = cv.getContext("2d", { alpha: false });
 
-colorBtn.onclick=()=>picker.click();
-picker.oninput=e=>{currentColor=e.target.value;updateColorBtn();}
-clearBtn.onclick=()=>{currentColor="transparent";updateColorBtn();}
+  const btnStart = $("btnStart");
+  const btnStop  = $("btnStop");
+  const statusEl = $("status");
 
-function resize(){
-  const dpr=window.devicePixelRatio||1;
-  cv.width=cv.clientWidth*dpr;
-  cv.height=cv.clientHeight*dpr;
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-}
-window.onresize=resize; resize();
+  const modeEl = $("mode");
+  const titleText = $("titleText");
+  const subText = $("subText");
+  const infoEl = $("info");
 
-async function start(){
-  audioCtx=new AudioContext();
-  stream=await navigator.mediaDevices.getUserMedia({audio:true});
-  const src=audioCtx.createMediaStreamSource(stream);
-  analyser=audioCtx.createAnalyser();
-  analyser.fftSize=2048;
-  src.connect(analyser);
-  dataTime=new Uint8Array(analyser.fftSize);
-  dataFreq=new Uint8Array(analyser.frequencyBinCount);
-  draw();
-}
-function stop(){stream.getTracks().forEach(t=>t.stop());audioCtx.close();}
-startBtn.onclick=start; stopBtn.onclick=stop;
+  const fftEl = $("fft");
+  const smoothEl = $("smooth");
+  const ampEl = $("amp");
+  const maxFEl = $("maxF");
+  const autoGainEl = $("autoGain");
+  const fpsEl = $("fps");
 
-snapBtn.onclick=()=>{
-  analyser.getByteTimeDomainData(dataTime);
-  analyser.getByteFrequencyData(dataFreq);
-  snapshots.push({time:new Uint8Array(dataTime),freq:new Uint8Array(dataFreq),color:currentColor,shift:0});
-  updateSnapshotUI();
-};
+  const fftVal = $("fftVal");
+  const smVal = $("smVal");
+  const ampVal = $("ampVal");
+  const maxFVal = $("maxFVal");
 
-function updateSnapshotUI(){
-  const box=document.getElementById("snapshots");
-  box.innerHTML="<b>保存したスナップショット：</b>";
-  snapshots.forEach((s,i)=>{
-    const div=document.createElement("div");
-    div.className="phaseCtrl";
-    div.innerHTML=`<span style="color:${s.color}">■</span> #${i+1}`;
-    const del=document.createElement("span");
-    del.textContent=" ❌";
-    del.className="deleteBtn";
-    del.onclick=()=>{snapshots.splice(i,1);updateSnapshotUI();}
-    div.appendChild(del);
-    box.appendChild(div);
-  });
-}
+  // ==== Audio state ====
+  let audioCtx = null;
+  let analyser = null;
+  let stream = null;
+  let src = null;
 
-// 📏 全モード対応目盛
-function drawAxes(mode){
-  const w=cv.width/(window.devicePixelRatio||1);
-  const h=cv.height/(window.devicePixelRatio||1);
-  ctx.strokeStyle="#ccd3ff";
-  ctx.fillStyle="#556";
-  ctx.font="12px 'M PLUS Rounded 1c'";
-  ctx.lineWidth=1;
+  let timeData = null;   // Uint8Array
+  let freqData = null;   // Uint8Array
 
-  if(mode==="wave"){
-    for(let i=0;i<=10;i++){
-      let x=i*w/10;
-      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
-      ctx.fillText((i*2)+"ms",x+2,h-4);
-    }
-    for(let j=0;j<=8;j++){
-      let y=j*h/8;
-      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
-      ctx.fillText((1-j/4).toFixed(1),2,y-2);
+  let rafId = null;
+  let lastDrawT = 0;
+
+  // ==== Canvas resizing (devicePixelRatio aware) ====
+  function resizeCanvas() {
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const rect = cv.getBoundingClientRect();
+    const w = Math.max(10, Math.floor(rect.width * dpr));
+    const h = Math.max(10, Math.floor(rect.height * dpr));
+    if (cv.width !== w || cv.height !== h) {
+      cv.width = w;
+      cv.height = h;
     }
   }
-  else if(mode==="polar"){
-    const cx=w/2, cy=h/2, R=Math.min(w,h)*0.35;
-    for(let a=0;a<360;a+=30){
-      let rad=a*Math.PI/180;
-      let x=cx+Math.cos(rad)*R;
-      let y=cy+Math.sin(rad)*R;
-      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(x,y);ctx.stroke();
-      ctx.fillText(a+"°",x,y);
-    }
-    for(let r=0.25;r<=1;r+=0.25){
-      ctx.beginPath();ctx.arc(cx,cy,R*r,0,Math.PI*2);ctx.stroke();
-      ctx.fillText(r.toFixed(2),cx+5,cy-R*r);
-    }
-  }
-  else if(mode==="lissajous"){
-    for(let i=0;i<=8;i++){
-      let x=i*w/8;
-      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
-      ctx.fillText((i/4-1).toFixed(1),x+2,h-4);
-    }
-    for(let j=0;j<=8;j++){
-      let y=j*h/8;
-      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
-      ctx.fillText((1-j/4).toFixed(1),2,y-2);
-    }
-  }
-  else if(mode==="spectrum"){
-    const nyq=audioCtx ? audioCtx.sampleRate/2 : 22050;
-    for(let i=0;i<=10;i++){
-      let x=i*w/10;
-      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
-      ctx.fillText(Math.round(i*nyq/10)+"Hz",x+2,h-4);
-    }
-    for(let j=0;j<=8;j++){
-      let y=j*h/8;
-      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
-      ctx.fillText((100-j*12)+"%",2,y-2);
-    }
-  }
-}
+  window.addEventListener("resize", resizeCanvas);
 
-function draw(){
-  requestAnimationFrame(draw);
-  if(!analyser)return;
-  analyser.getByteTimeDomainData(dataTime);
-  analyser.getByteFrequencyData(dataFreq);
-  ctx.clearRect(0,0,cv.width,cv.height);
-  const w=cv.width/(window.devicePixelRatio||1);
-  const h=cv.height/(window.devicePixelRatio||1);
-  const mode=modeSel.value;
-  drawAxes(mode);
-
-  function wave(arr,color,shift=0){
-    if(color==="transparent")return;
-    ctx.strokeStyle=color; ctx.beginPath();
-    for(let i=0;i<arr.length;i++){
-      let idx=(i+shift+arr.length)%arr.length;
-      let x=i*w/arr.length;
-      let y=h/2+(arr[idx]-128)/128*h*0.4;
-      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
-    } ctx.stroke();
-  }
-  function polar(arr,color){
-    if(color==="transparent")return;
-    const cx=w/2,cy=h/2,R=Math.min(w,h)*0.35;
-    ctx.strokeStyle=color; ctx.beginPath();
-    for(let i=0;i<arr.length;i++){
-      let ang=i/arr.length*Math.PI*2;
-      let amp=(arr[i]-128)/128;
-      let r=R*(0.6+amp*0.4);
-      let x=cx+Math.cos(ang)*r,y=cy+Math.sin(ang)*r;
-      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
-    } ctx.closePath(); ctx.stroke();
-  }
-  function liss(arr,color){
-    if(color==="transparent")return;
-    ctx.strokeStyle=color; ctx.beginPath();
-    for(let i=0;i<arr.length;i++){
-      let x=(arr[i]-128)/128;
-      let y=(arr[(i+100)%arr.length]-128)/128;
-      x=w/2+x*w*0.4; y=h/2+y*h*0.4;
-      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
-    } ctx.stroke();
-  }
-  function spectrum(arr,color){
-    if(color==="transparent")return;
-    ctx.strokeStyle=color; ctx.beginPath();
-    for(let i=0;i<arr.length;i++){
-      let x=i*w/arr.length;
-      let y=h-arr[i]/255*h*0.9;
-      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
-    } ctx.stroke();
+  // ==== UI helpers ====
+  function setStatus(txt, kind="") {
+    statusEl.textContent = txt;
+    statusEl.style.background =
+      (kind === "ok") ? "rgba(125,211,252,0.14)" :
+      (kind === "err") ? "rgba(255,107,107,0.18)" :
+      "rgba(255,255,255,0.07)";
+    statusEl.style.borderColor =
+      (kind === "ok") ? "rgba(125,211,252,0.35)" :
+      (kind === "err") ? "rgba(255,107,107,0.35)" :
+      "rgba(255,255,255,0.10)";
+    statusEl.style.color = (kind === "err") ? "#ffd2d2" : "var(--muted)";
   }
 
-  snapshots.forEach(s=>{
-    if(mode==="wave") wave(s.time,s.color,s.shift);
-    if(mode==="polar") polar(s.time,s.color);
-    if(mode==="lissajous") liss(s.time,s.color);
-    if(mode==="spectrum") spectrum(s.freq,s.color);
-  });
+  function setModeLabels(mode) {
+    if (mode === "wave") {
+      titleText.textContent = "時間波形";
+      subText.textContent = "マイクの生波形（時間）";
+    } else if (mode === "polar") {
+      titleText.textContent = "極座標（円形）";
+      subText.textContent = "波形を円周に並べた表示（振幅＝半径方向）";
+    } else {
+      titleText.textContent = "スペクトル（周波数）";
+      subText.textContent = "周波数成分（FFT）";
+    }
+  }
 
-  if(mode==="wave") wave(dataTime,currentColor);
-  if(mode==="polar") polar(dataTime,currentColor);
-  if(mode==="lissajous") liss(dataTime,currentColor);
-  if(mode==="spectrum") spectrum(dataFreq,currentColor);
-}
+  function updateSlidersText() {
+    fftVal.textContent = String(fftEl.value);
+    smVal.textContent = Number(smoothEl.value).toFixed(2);
+    ampVal.textContent = Number(ampEl.value).toFixed(1);
+    maxFVal.textContent = `${maxFEl.value} Hz`;
+  }
+
+  function applyAnalyserSettings() {
+    if (!analyser) return;
+    analyser.fftSize = Number(fftEl.value);
+    analyser.smoothingTimeConstant = Number(smoothEl.value);
+    timeData = new Uint8Array(analyser.fftSize);
+    freqData = new Uint8Array(analyser.frequencyBinCount);
+  }
+
+  // ==== Drawing primitives ====
+  function clear() {
+    ctx.fillStyle = "rgba(0,0,0,1)";
+    ctx.fillRect(0, 0, cv.width, cv.height);
+  }
+
+  function drawGrid() {
+    // subtle grid
+    const w = cv.width, h = cv.height;
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1;
+
+    const step = Math.max(40, Math.floor(Math.min(w, h) / 12));
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+    for (let y = 0; y <= h; y += step) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+    ctx.stroke();
+
+    // center line (time wave)
+    ctx.globalAlpha = 0.25;
+    ctx.beginPath();
+    ctx.moveTo(0, h/2);
+    ctx.lineTo(w, h/2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function computeRMS(u8) {
+    // u8 0..255, center 128
+    let sum = 0;
+    for (let i = 0; i < u8.length; i++) {
+      const v = (u8[i] - 128) / 128; // -1..1
+      sum += v * v;
+    }
+    return Math.sqrt(sum / u8.length);
+  }
+
+  function autoGainScale(rms) {
+    // make small sounds visible but keep stable
+    // target rms ~ 0.15
+    const target = 0.15;
+    const g = target / Math.max(0.01, rms);
+    // clamp
+    return Math.max(0.6, Math.min(6.0, g));
+  }
+
+  function drawWave() {
+    analyser.getByteTimeDomainData(timeData);
+
+    const w = cv.width, h = cv.height;
+    clear();
+    drawGrid();
+
+    const baseAmp = Number(ampEl.value);
+    const rms = computeRMS(timeData);
+    const g = autoGainEl.checked ? autoGainScale(rms) : 1.0;
+    const amp = baseAmp * g;
+
+    // waveform
+    ctx.save();
+    ctx.lineWidth = Math.max(2, Math.floor(Math.min(w, h) / 240));
+    ctx.strokeStyle = "#ffffff";
+    ctx.globalAlpha = 0.95;
+
+    ctx.beginPath();
+    for (let i = 0; i < timeData.length; i++) {
+      const x = (i / (timeData.length - 1)) * w;
+      const v = (timeData[i] - 128) / 128; // -1..1
+      const y = (h / 2) - v * (h * 0.38) * amp;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // info
+    infoEl.textContent = `RMS ${(rms).toFixed(3)}  |  gain ×${g.toFixed(2)}`;
+    ctx.restore();
+  }
+
+  function drawPolar() {
+    analyser.getByteTimeDomainData(timeData);
+
+    const w = cv.width, h = cv.height;
+    clear();
+
+    const cx = w / 2, cy = h / 2;
+    const r0 = Math.min(w, h) * 0.18;
+    const r1 = Math.min(w, h) * 0.44;
+
+    // background rings
+    ctx.save();
+    ctx.strokeStyle = "#ffffff";
+    ctx.globalAlpha = 0.18;
+    ctx.lineWidth = 1;
+    for (let k = 1; k <= 4; k++) {
+      const rr = r0 + (r1 - r0) * (k / 4);
+      ctx.beginPath();
+      ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    const baseAmp = Number(ampEl.value);
+    const rms = computeRMS(timeData);
+    const g = autoGainEl.checked ? autoGainScale(rms) : 1.0;
+    const amp = baseAmp * g;
+
+    // waveform around circle
+    ctx.save();
+    ctx.lineWidth = Math.max(2, Math.floor(Math.min(w, h) / 260));
+    ctx.strokeStyle = "#ffffff";
+    ctx.globalAlpha = 0.95;
+    ctx.beginPath();
+
+    for (let i = 0; i < timeData.length; i++) {
+      const t = i / timeData.length; // 0..1
+      const ang = t * Math.PI * 2 - Math.PI / 2;
+      const v = (timeData[i] - 128) / 128; // -1..1
+      const rr = (r0 + r1) / 2 + v * (r1 - r0) * 0.55 * amp;
+
+      const x = cx + Math.cos(ang) * rr;
+      const y = cy + Math.sin(ang) * rr;
+
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // center dot
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+
+    infoEl.textContent = `RMS ${(rms).toFixed(3)}  |  gain ×${g.toFixed(2)}`;
+    ctx.restore();
+  }
+
+  function drawSpectrum() {
+    analyser.getByteFrequencyData(freqData);
+
+    const w = cv.width, h = cv.height;
+    clear();
+    drawGrid();
+
+    const nyquist = (audioCtx ? audioCtx.sampleRate : 48000) / 2;
+    const maxF = Math.min(Number(maxFEl.value), nyquist);
+    const binCount = freqData.length;
+    const freqPerBin = nyquist / binCount;
+    const showBins = Math.max(8, Math.floor(maxF / freqPerBin));
+
+    // draw bars/line
+    ctx.save();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = Math.max(2, Math.floor(Math.min(w, h) / 260));
+    ctx.globalAlpha = 0.95;
+
+    ctx.beginPath();
+    for (let i = 0; i < showBins; i++) {
+      const x = (i / (showBins - 1)) * w;
+      const mag = freqData[i] / 255; // 0..1
+      const y = h - (mag * h * 0.85);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // label: peak frequency (rough)
+    let peakI = 0, peakV = -1;
+    for (let i = 0; i < showBins; i++) {
+      if (freqData[i] > peakV) { peakV = freqData[i]; peakI = i; }
+    }
+    const peakF = peakI * freqPerBin;
+    infoEl.textContent = `Nyquist ${Math.round(nyquist)} Hz | peak ~ ${Math.round(peakF)} Hz`;
+
+    ctx.restore();
+  }
+
+  function drawLoop(t) {
+    const fps = Number(fpsEl.value);
+    const minDt = 1000 / fps;
+    if (t - lastDrawT < minDt) {
+      rafId = requestAnimationFrame(drawLoop);
+      return;
+    }
+    lastDrawT = t;
+
+    const mode = modeEl.value;
+    if (!analyser) {
+      clear();
+      ctx.save();
+      ctx.fillStyle = "#ffffff";
+      ctx.globalAlpha = 0.75;
+      ctx.font = "20px system-ui";
+      ctx.fillText("Start を押してマイクを許可してください", 20, 60);
+      ctx.restore();
+      rafId = requestAnimationFrame(drawLoop);
+      return;
+    }
+
+    if (mode === "wave") drawWave();
+    else if (mode === "polar") drawPolar();
+    else drawSpectrum();
+
+    rafId = requestAnimationFrame(drawLoop);
+  }
+
+  async function start() {
+    try {
+      btnStart.disabled = true;
+
+      // iOS/Safari 対策：ユーザー操作内でAudioContext生成
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      });
+
+      src = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.minDecibels = -90;
+      analyser.maxDecibels = -10;
+
+      applyAnalyserSettings();
+      src.connect(analyser);
+
+      setStatus("running", "ok");
+      btnStop.disabled = false;
+
+      resizeCanvas();
+      lastDrawT = 0;
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(drawLoop);
+
+    } catch (e) {
+      console.error(e);
+      setStatus("error", "err");
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+      infoEl.textContent = "マイク許可が必要です";
+      // cleanup partial
+      await stop();
+    }
+  }
+
+  async function stop() {
+    try {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      lastDrawT = 0;
+
+      if (src) { try { src.disconnect(); } catch {} }
+      src = null;
+
+      analyser = null;
+      timeData = null;
+      freqData = null;
+
+      if (stream) {
+        stream.getTracks().forEach(tr => tr.stop());
+        stream = null;
+      }
+
+      if (audioCtx) {
+        try { await audioCtx.close(); } catch {}
+        audioCtx = null;
+      }
+
+      clear();
+      infoEl.textContent = "—";
+      setStatus("stopped");
+    } finally {
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+    }
+  }
+
+  // ==== Event wiring ====
+  btnStart.addEventListener("click", start);
+  btnStop.addEventListener("click", stop);
+
+  modeEl.addEventListener("change", () => setModeLabels(modeEl.value));
+  fftEl.addEventListener("input", () => { updateSlidersText(); applyAnalyserSettings(); });
+  smoothEl.addEventListener("input", () => { updateSlidersText(); applyAnalyserSettings(); });
+  ampEl.addEventListener("input", updateSlidersText);
+  maxFEl.addEventListener("input", updateSlidersText);
+
+  // init
+  updateSlidersText();
+  setModeLabels(modeEl.value);
+  resizeCanvas();
+  clear();
+  requestAnimationFrame(drawLoop);
+})();
 </script>
 </body>
 </html>
