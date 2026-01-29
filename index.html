@@ -8,14 +8,14 @@
 <style>
 :root{
   --bg1:#f7f8ff; --bg2:#e6e9ff; --card:#ffffffdd;
-  --ink:#334; --accent:#ff7eb6; --accent2:#7ec8ff; --grid:#ccd3ff;
+  --ink:#334; --accent:#ff7eb6; --accent2:#7ec8ff; --grid:#d6dcff;
 }
 *{box-sizing:border-box;}
 body{margin:0;font-family:"M PLUS Rounded 1c",sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:var(--ink);}
 header{padding:12px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;}
 button,select,input[type=color]{border:none;border-radius:20px;padding:8px 14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;font-weight:700;cursor:pointer;}
 .card{margin:12px;background:var(--card);border-radius:20px;padding:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);}
-canvas{width:100%;height:480px;border-radius:16px;background:linear-gradient(#ffffff,#eef1ff);}
+canvas{width:100%;height:480px;border-radius:16px;background:white;}
 #snapshots{margin:10px;font-size:13px;}
 .phaseCtrl{display:flex;align-items:center;gap:6px;margin:4px 0;}
 .deleteBtn{cursor:pointer;color:#c33;font-weight:bold;}
@@ -81,52 +81,67 @@ async function start(){
 function stop(){stream.getTracks().forEach(t=>t.stop());audioCtx.close();}
 startBtn.onclick=start; stopBtn.onclick=stop;
 
-snapBtn.onclick=()=>{
-  analyser.getByteTimeDomainData(dataTime);
-  analyser.getByteFrequencyData(dataFreq);
-  snapshots.push({time:new Uint8Array(dataTime),freq:new Uint8Array(dataFreq),color:currentColor,shift:0});
-  updateSnapshotUI();
-};
+/* ===== 目盛描画 ===== */
+function drawGridLabels(mode,w,h){
+  ctx.strokeStyle="#e4e8ff";
+  ctx.fillStyle="#445";
+  ctx.lineWidth=1;
+  ctx.font="12px 'M PLUS Rounded 1c'";
 
-modeSel.onchange=updateSnapshotUI;
-
-function updateSnapshotUI(){
-  const box=document.getElementById("snapshots");
-  box.innerHTML="<b>保存したスナップショット：</b>";
-  const mode=modeSel.value;
-
-  snapshots.forEach((s,i)=>{
-    const div=document.createElement("div");
-    div.className="phaseCtrl";
-    div.innerHTML=`<span style="color:${s.color}">■</span> #${i+1}`;
-
-    if(mode==="wave"){
-      const slider=document.createElement("input");
-      slider.type="range"; slider.min=-1024; slider.max=1024; slider.value=s.shift;
-      slider.oninput=e=>s.shift=parseInt(e.target.value);
-      div.appendChild(document.createTextNode(" 位相"));
-      div.appendChild(slider);
+  if(mode==="wave" || mode==="lissajous"){
+    for(let i=0;i<=10;i++){
+      let x=i*w/10;
+      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+      ctx.fillText((i/10).toFixed(1),x+2,h-4);
     }
+    for(let j=0;j<=8;j++){
+      let y=j*h/8;
+      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+      ctx.fillText(((1-j/8)*2-1).toFixed(1),2,y-2);
+    }
+  }
 
-    const del=document.createElement("span");
-    del.textContent=" ❌";
-    del.className="deleteBtn";
-    del.onclick=()=>{snapshots.splice(i,1);updateSnapshotUI();}
-    div.appendChild(del);
-    box.appendChild(div);
-  });
+  if(mode==="spectrum"){
+    for(let i=0;i<=10;i++){
+      let x=i*w/10;
+      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+      ctx.fillText(i*10+"%",x+2,h-4);
+    }
+    for(let j=0;j<=8;j++){
+      let y=j*h/8;
+      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+      ctx.fillText((100-j*12.5).toFixed(0)+"%",2,y-2);
+    }
+  }
+
+  if(mode==="polar"){
+    const cx=w/2,cy=h/2,R=Math.min(w,h)*0.35;
+    for(let r=0.25;r<=1;r+=0.25){
+      ctx.beginPath();ctx.arc(cx,cy,R*r,0,Math.PI*2);ctx.stroke();
+      ctx.fillText(r.toFixed(2),cx+4,cy-R*r);
+    }
+    for(let a=0;a<360;a+=30){
+      let rad=a*Math.PI/180;
+      ctx.beginPath();ctx.moveTo(cx,cy);
+      ctx.lineTo(cx+Math.cos(rad)*R,cy+Math.sin(rad)*R);ctx.stroke();
+      ctx.fillText(a+"°",cx+Math.cos(rad)*(R+12),cy+Math.sin(rad)*(R+12));
+    }
+  }
 }
 
+/* ===== メイン描画 ===== */
 function draw(){
   requestAnimationFrame(draw);
   if(!analyser)return;
   analyser.getByteTimeDomainData(dataTime);
   analyser.getByteFrequencyData(dataFreq);
 
-  ctx.clearRect(0,0,cv.width,cv.height);
   const w=cv.width/(window.devicePixelRatio||1);
   const h=cv.height/(window.devicePixelRatio||1);
+  ctx.clearRect(0,0,w,h);
+
   const mode=modeSel.value;
+  drawGridLabels(mode,w,h);
 
   function wave(arr,color,shift=0){
     if(color==="transparent")return;
