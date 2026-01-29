@@ -8,14 +8,14 @@
 <style>
 :root{
   --bg1:#f7f8ff; --bg2:#e6e9ff; --card:#ffffffdd;
-  --ink:#334; --accent:#ff7eb6; --accent2:#7ec8ff; --grid:#d6dcff;
+  --ink:#334; --accent:#ff7eb6; --accent2:#7ec8ff; --grid:#ccd3ff;
 }
 *{box-sizing:border-box;}
 body{margin:0;font-family:"M PLUS Rounded 1c",sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:var(--ink);}
 header{padding:12px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;}
 button,select,input[type=color]{border:none;border-radius:20px;padding:8px 14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;font-weight:700;cursor:pointer;}
 .card{margin:12px;background:var(--card);border-radius:20px;padding:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);}
-canvas{width:100%;height:480px;border-radius:16px;background:white;}
+canvas{width:100%;height:480px;border-radius:16px;background:linear-gradient(#ffffff,#eef1ff);}
 #snapshots{margin:10px;font-size:13px;}
 .phaseCtrl{display:flex;align-items:center;gap:6px;margin:4px 0;}
 .deleteBtn{cursor:pointer;color:#c33;font-weight:bold;}
@@ -81,36 +81,105 @@ async function start(){
 function stop(){stream.getTracks().forEach(t=>t.stop());audioCtx.close();}
 startBtn.onclick=start; stopBtn.onclick=stop;
 
-/* ===== 目盛描画 ===== */
-function drawGridLabels(mode,w,h){
+snapBtn.onclick=()=>{
+  analyser.getByteTimeDomainData(dataTime);
+  analyser.getByteFrequencyData(dataFreq);
+  snapshots.push({time:new Uint8Array(dataTime),freq:new Uint8Array(dataFreq),color:currentColor,shift:0});
+  updateSnapshotUI();
+};
+
+modeSel.onchange=updateSnapshotUI;
+
+function updateSnapshotUI(){
+  const box=document.getElementById("snapshots");
+  box.innerHTML="<b>保存したスナップショット：</b>";
+  const mode=modeSel.value;
+
+  snapshots.forEach((s,i)=>{
+    const div=document.createElement("div");
+    div.className="phaseCtrl";
+    div.innerHTML=`<span style="color:${s.color}">■</span> #${i+1}`;
+
+    if(mode==="wave"){
+      const slider=document.createElement("input");
+      slider.type="range"; slider.min=-1024; slider.max=1024; slider.value=s.shift;
+      slider.oninput=e=>s.shift=parseInt(e.target.value);
+      div.appendChild(document.createTextNode(" 位相"));
+      div.appendChild(slider);
+    }
+
+    const del=document.createElement("span");
+    del.textContent=" ❌";
+    del.className="deleteBtn";
+    del.onclick=()=>{snapshots.splice(i,1);updateSnapshotUI();}
+    div.appendChild(del);
+    box.appendChild(div);
+  });
+}
+
+function draw(){
+  requestAnimationFrame(draw);
+  if(!analyser)return;
+  analyser.getByteTimeDomainData(dataTime);
+  analyser.getByteFrequencyData(dataFreq);
+
+  const fullW=cv.width/(window.devicePixelRatio||1);
+  const fullH=cv.height/(window.devicePixelRatio||1);
+  ctx.clearRect(0,0,fullW,fullH);
+
+  const mode=modeSel.value;
+
+  // ===== 外側ラベル用マージン =====
+  const margin={left:70,right:20,top:30,bottom:50};
+  const w=fullW-margin.left-margin.right;
+  const h=fullH-margin.top-margin.bottom;
+
+  ctx.save();
+  ctx.translate(margin.left,margin.top);
+
   ctx.strokeStyle="#e4e8ff";
   ctx.fillStyle="#445";
-  ctx.lineWidth=1;
   ctx.font="12px 'M PLUS Rounded 1c'";
 
-  if(mode==="wave" || mode==="lissajous"){
+  // ===== 目盛 =====
+  if(mode==="wave"){
+    const duration=dataTime.length/audioCtx.sampleRate*1000;
     for(let i=0;i<=10;i++){
       let x=i*w/10;
       ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
-      ctx.fillText((i/10).toFixed(1),x+2,h-4);
+      ctx.fillText(Math.round(i*duration/10),x-10,h+15);
     }
     for(let j=0;j<=8;j++){
       let y=j*h/8;
       ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
-      ctx.fillText(((1-j/8)*2-1).toFixed(1),2,y-2);
+      ctx.fillText(((1-j/8)*2-1).toFixed(1),-45,y+4);
     }
   }
 
   if(mode==="spectrum"){
+    const nyq=audioCtx.sampleRate/2;
     for(let i=0;i<=10;i++){
       let x=i*w/10;
       ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
-      ctx.fillText(i*10+"%",x+2,h-4);
+      ctx.fillText(Math.round(i*nyq/10),x-10,h+15);
     }
     for(let j=0;j<=8;j++){
       let y=j*h/8;
       ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
-      ctx.fillText((100-j*12.5).toFixed(0)+"%",2,y-2);
+      ctx.fillText((100-j*12.5).toFixed(0),-45,y+4);
+    }
+  }
+
+  if(mode==="lissajous"){
+    for(let i=0;i<=8;i++){
+      let x=i*w/8;
+      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+      ctx.fillText((i/8*2-1).toFixed(1),x-10,h+15);
+    }
+    for(let j=0;j<=8;j++){
+      let y=j*h/8;
+      ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+      ctx.fillText(((1-j/8)*2-1).toFixed(1),-45,y+4);
     }
   }
 
@@ -118,7 +187,7 @@ function drawGridLabels(mode,w,h){
     const cx=w/2,cy=h/2,R=Math.min(w,h)*0.35;
     for(let r=0.25;r<=1;r+=0.25){
       ctx.beginPath();ctx.arc(cx,cy,R*r,0,Math.PI*2);ctx.stroke();
-      ctx.fillText(r.toFixed(2),cx+4,cy-R*r);
+      ctx.fillText(r.toFixed(2),cx+5,cy-R*r);
     }
     for(let a=0;a<360;a+=30){
       let rad=a*Math.PI/180;
@@ -127,22 +196,8 @@ function drawGridLabels(mode,w,h){
       ctx.fillText(a+"°",cx+Math.cos(rad)*(R+12),cy+Math.sin(rad)*(R+12));
     }
   }
-}
 
-/* ===== メイン描画 ===== */
-function draw(){
-  requestAnimationFrame(draw);
-  if(!analyser)return;
-  analyser.getByteTimeDomainData(dataTime);
-  analyser.getByteFrequencyData(dataFreq);
-
-  const w=cv.width/(window.devicePixelRatio||1);
-  const h=cv.height/(window.devicePixelRatio||1);
-  ctx.clearRect(0,0,w,h);
-
-  const mode=modeSel.value;
-  drawGridLabels(mode,w,h);
-
+  // ===== グラフ描画 =====
   function wave(arr,color,shift=0){
     if(color==="transparent")return;
     ctx.strokeStyle=color; ctx.beginPath();
@@ -153,7 +208,6 @@ function draw(){
       i?ctx.lineTo(x,y):ctx.moveTo(x,y);
     } ctx.stroke();
   }
-
   function polar(arr,color){
     if(color==="transparent")return;
     const cx=w/2,cy=h/2,R=Math.min(w,h)*0.35;
@@ -167,7 +221,6 @@ function draw(){
     }
     ctx.closePath(); ctx.stroke();
   }
-
   function liss(arr,color){
     if(color==="transparent")return;
     ctx.strokeStyle=color; ctx.beginPath();
@@ -179,7 +232,6 @@ function draw(){
     }
     ctx.stroke();
   }
-
   function spectrum(arr,color){
     if(color==="transparent")return;
     ctx.strokeStyle=color; ctx.beginPath();
@@ -202,6 +254,34 @@ function draw(){
   if(mode==="polar") polar(dataTime,currentColor);
   if(mode==="lissajous") liss(dataTime,currentColor);
   if(mode==="spectrum") spectrum(dataFreq,currentColor);
+
+  ctx.restore();
+
+  // ===== 軸キャプション（外側） =====
+  ctx.fillStyle="#334";
+  ctx.font="14px 'M PLUS Rounded 1c'";
+  if(mode==="wave"){
+    ctx.fillText("時間 (ms)", fullW/2-35, fullH-10);
+    ctx.save();ctx.rotate(-Math.PI/2);
+    ctx.fillText("振幅", -fullH/2, 20);
+    ctx.restore();
+  }
+  if(mode==="spectrum"){
+    ctx.fillText("周波数 (Hz)", fullW/2-40, fullH-10);
+    ctx.save();ctx.rotate(-Math.PI/2);
+    ctx.fillText("強度 (%)", -fullH/2, 20);
+    ctx.restore();
+  }
+  if(mode==="lissajous"){
+    ctx.fillText("X振幅", fullW/2-20, fullH-10);
+    ctx.save();ctx.rotate(-Math.PI/2);
+    ctx.fillText("Y振幅", -fullH/2, 20);
+    ctx.restore();
+  }
+  if(mode==="polar"){
+    ctx.fillText("角度 (°)", fullW/2-25, 20);
+    ctx.fillText("半径スケール", fullW-130, fullH/2);
+  }
 }
 </script>
 </body>
